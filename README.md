@@ -41,7 +41,7 @@ A professional, interactive web application for object tracking in videos using 
 streamlit run app.py
 ```
 
-Open your browser and go to [http://localhost:8501](http://localhost:8501).
+Open your browser and go to DEMO [DEMO](https://objectdetectionproject2-4ndbogd7xx3osde5bdi9ot.streamlit.app/).
 
 ## Usage
 
