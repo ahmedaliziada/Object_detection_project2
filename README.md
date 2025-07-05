@@ -1,4 +1,7 @@
 # Object Tracking App
+![alt text](image-1.png)
+
+
 
 A professional, interactive web application for object tracking in videos using background subtraction, built with **Streamlit** and **OpenCV**.
 
@@ -12,9 +15,6 @@ A professional, interactive web application for object tracking in videos using 
 - 📊 **Progress bar** for video processing feedback
 - 💻 **Modern, responsive UI** with sidebar controls
 
-## Demo
-
-![App Screenshot](![alt text](image-1.png))
 ## Getting Started
 
 ### Prerequisites
