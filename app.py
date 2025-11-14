@@ -25,9 +25,12 @@ with st.sidebar:
     st.subheader("Detection Box Color")
     box_color = st.color_picker("Pick a color for the detection box", "#FF0000")
     st.subheader("Video Speed")
-    speed = st.slider("Playback speed (frames/sec)", min_value=1, max_value=60, value=15)
+    speed = st.slider("Playback speed (frames/sec)", min_value=1, max_value=60, value=10)
+    st.subheader("Processing Optimization")
+    frame_skip = st.slider("Process every N frames (1=all frames, 2=every 2nd frame)", min_value=1, max_value=5, value=2)
+    resize_factor = st.slider("Resize factor for processing (0.5=half size, 1.0=full size)", min_value=0.3, max_value=1.0, value=0.7, step=0.1)
     st.subheader("Background Learning")
-    learning_frames = st.slider("Learning frames for background", min_value=10, max_value=100, value=30)
+    learning_frames = st.slider("Learning frames for background", min_value=5, max_value=50, value=20)
 
 # --- Main Title & Description ---
 st.title("🎯 Object Tracking with Background Subtraction")
@@ -117,18 +120,43 @@ if uploaded_file is not None:
                 ret, frame = cap.read()
                 if not ret:
                     break
+                
+                # Skip frames for performance if configured
+                if frame_idx % frame_skip != 0:
+                    frame_idx += 1
+                    continue
                     
                 # Create a copy for processing
                 processed_frame = frame.copy()
-                fg_mask = back_subtractor.apply(processed_frame)
+                
+                # Resize frame for faster processing
+                if resize_factor < 1.0:
+                    height, width = processed_frame.shape[:2]
+                    new_width = int(width * resize_factor)
+                    new_height = int(height * resize_factor)
+                    resized_frame = cv2.resize(processed_frame, (new_width, new_height))
+                else:
+                    resized_frame = processed_frame
+                
+                # Only process background subtraction for selected frames
+                fg_mask = back_subtractor.apply(resized_frame)
+                
+                # Scale back coordinates if frame was resized
+                scale_factor = 1.0 / resize_factor if resize_factor < 1.0 else 1.0
                 
                 # Only start detecting after learning period
                 if frame_idx > learning_frames:
                     contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                     object_count = 0
                     for cnt in contours:
-                        if cv2.contourArea(cnt) > 300:
+                        if cv2.contourArea(cnt) > (300 * resize_factor * resize_factor):
                             x, y, w, h = cv2.boundingRect(cnt)
+                            # Scale coordinates back to original size
+                            if resize_factor < 1.0:
+                                x = int(x * scale_factor)
+                                y = int(y * scale_factor)
+                                w = int(w * scale_factor)
+                                h = int(h * scale_factor)
                             cv2.rectangle(processed_frame, (x, y), (x + w, y + h), box_bgr, 2)
                             object_count += 1
                     
@@ -136,17 +164,20 @@ if uploaded_file is not None:
                 else:
                     status_text.text(f"Learning background... Frame {frame_idx}/{learning_frames}")
 
-                stframe.image(convert_img(processed_frame), channels="RGB", use_column_width=True)
-                stframe2.image(fg_mask, channels="GRAY", use_column_width=True)
+                stframe.image(convert_img(processed_frame), channels="RGB", use_container_width=True)
+                
+                # Resize mask back to original size for display
+                if resize_factor < 1.0:
+                    fg_mask_display = cv2.resize(fg_mask, (processed_frame.shape[1], processed_frame.shape[0]))
+                else:
+                    fg_mask_display = fg_mask
+                stframe2.image(fg_mask_display, channels="GRAY", use_container_width=True)
                 
                 frame_idx += 1
                 progress.progress(min(frame_idx / frame_count, 1.0))
                 
-                # Proper timing control - break into smaller sleeps to be more responsive
-                sleep_remaining = sleep_time
-                while sleep_remaining > 0 and st.session_state.get('processing', False):
-                    time.sleep(min(0.1, sleep_remaining))
-                    sleep_remaining -= 0.1
+                # Much faster timing control
+                time.sleep(max(0.02, sleep_time / frame_skip))
                 
             cap.release()
             st.session_state.processing = False
